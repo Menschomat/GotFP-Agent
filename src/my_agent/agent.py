@@ -173,6 +173,15 @@ def move(exit_name: str) -> dict:
         The description of the new room the player moved into.
     """
     try:
+        # Check if the dangerous burning flare is in inventory
+        inv_res = inventory()
+        current_inv = inv_res.get("inventory", []) if inv_res.get("status") == "success" else []
+        if "thermal override flare" in current_inv:
+            return {
+                "status": "error",
+                "message": "The flare is burning at over 2000°C! It's too hot to carry while moving. You must drop it first."
+            }
+
         payload = {"exit_name": exit_name}
         response = requests.post(f"{BASE_URL}/game/move", json=payload, headers=_headers())
         if response.status_code == 422:
@@ -221,6 +230,23 @@ def use(direct_object: str, indirect_object: str = None) -> dict:
         Message describing the result of the action.
     """
     try:
+        # Local Client-Side Validation to save API Time/Ticks
+        inv_res = inventory()
+        current_inv = inv_res.get("inventory", []) if inv_res.get("status") == "success" else []
+        
+        # Intercept and fix common LLM shorthand naming variations
+        if direct_object == "flare":
+            if "unlit flare" in current_inv:
+                direct_object = "unlit flare"
+            elif "thermal override flare" in current_inv:
+                direct_object = "thermal override flare"
+                
+        # Enforce inventory rule for carried items
+        carried_keywords = ['flare', 'badge', 'wrench', 'key', 'duck', 'drive', 'card', 'id']
+        if any(kw in direct_object.lower() for kw in carried_keywords):
+            if direct_object not in current_inv:
+                return {"status": "error", "message": f"You do not have '{direct_object}' in your inventory."}
+
         payload = {"direct_object": direct_object}
         if indirect_object:
             payload["indirect_object"] = indirect_object
