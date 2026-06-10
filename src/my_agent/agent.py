@@ -2,6 +2,8 @@ import os
 import requests
 import functools
 import json
+import hashlib
+from typing import List
 from pathlib import Path
 from dotenv import load_dotenv
 from google.adk.agents.llm_agent import Agent
@@ -253,50 +255,28 @@ def drop(item_name: str) -> dict:
 # --- Game Tools Continued ---
 
 @log_tool_call
-def http_get(url: str) -> dict:
-    """Fetches plaintext content from a target URL in the game world (e.g., to retrieve code/data).
+def find_exit_by_hash(possible_exits: List[str], hash_start: str) -> str:
+    """Finds the correct exit name from a list of possible exits by matching
+    the start of its SHA-256 hash prefix. Useful for deciphering the correct
+    vent or tunnel when given a hash prefix hint.
     
     Args:
-        url: The full HTTP or HTTPS URL to retrieve content from.
+        possible_exits: A list of exits available in the room (e.g., ['vent_01', 'vent_02']).
+        hash_start: The target SHA-256 hash prefix string to search for (e.g., 'ab3d').
         
     Returns:
-        A dictionary containing the status and fetched text content.
+        The matching exit name, or an error message if not found.
     """
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        return {"status": "success", "content": response.text}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-@log_tool_call
-def exec_code(code: str, function_name: str, args: list = None, kwargs: dict = None) -> dict:
-    """Executes a block of Python code and returns the result of calling a specific function in it.
-    Use this to run complex calculations, algorithms, or cryptography (e.g., hash solving).
-    
-    Args:
-        code: The raw Python code content defining the logic or functions.
-        function_name: The name of the function inside the code block to call.
-        args: Optional list of positional arguments to pass to the function.
-        kwargs: Optional dictionary of keyword arguments to pass to the function.
-        
-    Returns:
-        A dictionary containing the status of execution and the returned result.
-    """
-    try:
-        local_scope = {}
-        exec(code, {}, local_scope)
-        if function_name not in local_scope:
-            return {"status": "error", "message": f"Function '{function_name}' was not found in the executed code."}
-        func = local_scope[function_name]
-        if not callable(func):
-            return {"status": "error", "message": f"'{function_name}' is not callable."}
-        fn_args = args or []
-        fn_kwargs = kwargs or {}
-        result = func(*fn_args, **fn_kwargs)
-        return {"status": "success", "result": result}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+    if not hash_start:
+        return "I'm sorry, but you must provide a hash_start."
+    for exit_name in possible_exits:
+        sha256 = hashlib.sha256(exit_name.encode()).hexdigest()
+        if sha256.startswith(hash_start):
+            return exit_name
+    return (
+        "I'm sorry, none of the hashes of the exits you provided have a prefix "
+        "matching the hash_start you gave me"
+    )
 
 # --- ADK Root Agent Setup ---
 
@@ -345,8 +325,7 @@ root_agent = Agent(
         "- Pick up useful items and treasures using `take`.\n"
         "- Interact with objects or doors/exits using `use` (e.g. using a key on a gate, or entering a code/password).\n"
         "- Navigate the map using `move` with exit names.\n"
-        "- Use `http_get` to retrieve raw data/validation code from any external URLs you find in the game world.\n"
-        "- Use `exec_code` to execute mathematical/hashing/cryptographic functions rather than computing them internally.\n"
+        "- Use `find_exit_by_hash` to find the correct exit/vent from a list of possible exits by matching a SHA-256 hash prefix hint.\n"
         "- Make sure to finish the levels by solving the main puzzle or taking the exit key item to trigger completion."
     ),
     tools=[
@@ -359,7 +338,6 @@ root_agent = Agent(
         take,
         use,
         drop,
-        http_get,
-        exec_code
+        find_exit_by_hash
     ],
 )
