@@ -1,0 +1,13 @@
+[project]
+name = "garden-of-the-forgotten-prompt"
+version = "0.1.0"
+description = "Google ADK agent project"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "google-adk[extensions]",
+    "python-dotenv",
+]
+
+[tool.uv]
+package = false
