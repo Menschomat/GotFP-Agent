@@ -8,6 +8,7 @@ dependencies = [
     "google-adk[extensions]",
     "python-dotenv",
     "requests",
+    "litellm",
 ]
 
 [tool.uv]

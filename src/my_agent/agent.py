@@ -1,5 +1,7 @@
 import os
 import requests
+import functools
+import json
 from pathlib import Path
 from dotenv import load_dotenv
 from google.adk.agents.llm_agent import Agent
@@ -22,6 +24,53 @@ def _headers():
 
 # --- Game Tools ---
 
+def log_to_markdown(action_name, args, kwargs, result):
+    log_file_path = Path(__file__).resolve().parents[2] / "gameplay_log.md"
+    
+    arg_str = ", ".join(repr(a) for a in args)
+    kwarg_str = ", ".join(f"{k}={repr(v)}" for k, v in kwargs.items())
+    combined_args = ", ".join(filter(None, [arg_str, kwarg_str]))
+    
+    is_start = action_name == "start_level"
+    
+    lines = []
+    if is_start:
+        lines.append(f"\n# Game Session: {args[0] if args else (kwargs.get('level_id') or 'New Session')}\n")
+    
+    lines.append(f"### `{action_name}({combined_args})`")
+    
+    if isinstance(result, (dict, list)):
+        try:
+            formatted_res = json.dumps(result, indent=2)
+            lines.append(f"```json\n{formatted_res}\n```\n")
+        except Exception:
+            lines.append(f"```text\n{result}\n```\n")
+    else:
+        lines.append(f"```text\n{result}\n```\n")
+        
+    try:
+        with open(log_file_path, "a", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+    except Exception as e:
+        print(f"Failed to write markdown log: {e}")
+
+def log_tool_call(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        arg_str = ", ".join(repr(a) for a in args)
+        kwarg_str = ", ".join(f"{k}={repr(v)}" for k, v in kwargs.items())
+        combined_args = ", ".join(filter(None, [arg_str, kwarg_str]))
+        print(f"\n>>> [GAME ACTION] {func.__name__}({combined_args})")
+        result = func(*args, **kwargs)
+        print(f"<<< [GAME RESPONSE] {func.__name__} returned: {result}\n")
+        
+        # Log to Markdown file
+        log_to_markdown(func.__name__, args, kwargs, result)
+        
+        return result
+    return wrapper
+
+@log_tool_call
 def list_levels() -> dict:
     """Lists all the adventure levels available in the game, including their description, highscore, and state.
     
@@ -37,6 +86,7 @@ def list_levels() -> dict:
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+@log_tool_call
 def start_level(level_id: str) -> dict:
     """Starts a new game session/level for the player.
     
@@ -56,6 +106,7 @@ def start_level(level_id: str) -> dict:
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+@log_tool_call
 def look() -> dict:
     """Gets the player's current location/room and its description.
     Use this to see where you are and what exits are available.
@@ -72,6 +123,7 @@ def look() -> dict:
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+@log_tool_call
 def inventory() -> dict:
     """Gets the player's current inventory of carried items.
     
@@ -87,6 +139,7 @@ def inventory() -> dict:
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+@log_tool_call
 def examine(target: str) -> dict:
     """Examines a target item, object, corrupted pixel, or exit in the room to get a detailed description.
     Highly useful for uncovering clues, passwords, and hints.
@@ -107,6 +160,7 @@ def examine(target: str) -> dict:
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+@log_tool_call
 def move(exit_name: str) -> dict:
     """Moves the player to a connected room by taking the specified exit.
     
@@ -126,6 +180,7 @@ def move(exit_name: str) -> dict:
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+@log_tool_call
 def take(item_name: str) -> dict:
     """Takes an item from the current room and adds it to the player's inventory.
     
@@ -151,6 +206,7 @@ def take(item_name: str) -> dict:
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+@log_tool_call
 def use(direct_object: str, indirect_object: str = None) -> dict:
     """Uses a thing, or uses two things on each other.
     Can be used on items in your inventory, items in the room, or exits.
@@ -174,6 +230,7 @@ def use(direct_object: str, indirect_object: str = None) -> dict:
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+@log_tool_call
 def drop(item_name: str) -> dict:
     """Drops an item from the player's inventory into the current room.
     
@@ -193,10 +250,32 @@ def drop(item_name: str) -> dict:
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-# --- ADK Root Agent ---
+# --- ADK Root Agent Setup ---
+
+LITELLM_MODEL = os.getenv("LITELLM_MODEL")
+
+if LITELLM_MODEL:
+    import litellm
+    
+    # Configure LiteLLM Proxy credentials (with fallback to LITELLM_API_*)
+    proxy_base = os.getenv("LITELLM_PROXY_API_BASE") or os.getenv("LITELLM_API_BASE")
+    proxy_key = os.getenv("LITELLM_PROXY_API_KEY") or os.getenv("LITELLM_API_KEY")
+    
+    if proxy_base:
+        os.environ["LITELLM_PROXY_API_BASE"] = proxy_base
+    if proxy_key:
+        os.environ["LITELLM_PROXY_API_KEY"] = proxy_key
+        
+    # Enable LiteLLM Proxy mode globally
+    litellm.use_litellm_proxy = True
+    
+    from google.adk.models.lite_llm import LiteLlm
+    agent_model = LiteLlm(model=LITELLM_MODEL)
+else:
+    agent_model = "gemini-2.5-flash"
 
 root_agent = Agent(
-    model="gemini-2.5-flash",
+    model=agent_model,
     name="adventure_agent",
     description="An autonomous agent that plays the text adventure game 'The Garden of the Forgotten Prompt' to optimize the score and leaderboard ranking.",
     instruction=(
