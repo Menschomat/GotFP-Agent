@@ -7,6 +7,7 @@ requires-python = ">=3.11"
 dependencies = [
     "google-adk[extensions]",
     "python-dotenv",
+    "requests",
 ]
 
 [tool.uv]
