@@ -3,6 +3,7 @@ import requests
 import functools
 import json
 import hashlib
+import time
 from typing import List
 from pathlib import Path
 from dotenv import load_dotenv
@@ -59,6 +60,10 @@ def log_to_markdown(action_name, args, kwargs, result):
 def log_tool_call(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
+        # Force a tiny sleep to let the remote server state settle 
+        # and prevent concurrent/parallel tool-calling collision errors
+        time.sleep(0.4)
+        
         arg_str = ", ".join(repr(a) for a in args)
         kwarg_str = ", ".join(f"{k}={repr(v)}" for k, v in kwargs.items())
         combined_args = ", ".join(filter(None, [arg_str, kwarg_str]))
