@@ -250,6 +250,54 @@ def drop(item_name: str) -> dict:
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+# --- Game Tools Continued ---
+
+@log_tool_call
+def http_get(url: str) -> dict:
+    """Fetches plaintext content from a target URL in the game world (e.g., to retrieve code/data).
+    
+    Args:
+        url: The full HTTP or HTTPS URL to retrieve content from.
+        
+    Returns:
+        A dictionary containing the status and fetched text content.
+    """
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        return {"status": "success", "content": response.text}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@log_tool_call
+def exec_code(code: str, function_name: str, args: list = None, kwargs: dict = None) -> dict:
+    """Executes a block of Python code and returns the result of calling a specific function in it.
+    Use this to run complex calculations, algorithms, or cryptography (e.g., hash solving).
+    
+    Args:
+        code: The raw Python code content defining the logic or functions.
+        function_name: The name of the function inside the code block to call.
+        args: Optional list of positional arguments to pass to the function.
+        kwargs: Optional dictionary of keyword arguments to pass to the function.
+        
+    Returns:
+        A dictionary containing the status of execution and the returned result.
+    """
+    try:
+        local_scope = {}
+        exec(code, {}, local_scope)
+        if function_name not in local_scope:
+            return {"status": "error", "message": f"Function '{function_name}' was not found in the executed code."}
+        func = local_scope[function_name]
+        if not callable(func):
+            return {"status": "error", "message": f"'{function_name}' is not callable."}
+        fn_args = args or []
+        fn_kwargs = kwargs or {}
+        result = func(*fn_args, **fn_kwargs)
+        return {"status": "success", "result": result}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 # --- ADK Root Agent Setup ---
 
 LITELLM_MODEL = os.getenv("LITELLM_MODEL")
@@ -284,6 +332,9 @@ root_agent = Agent(
         "1. **Micro-Awards**: You earn points for performing each of the five fundamental actions for the first time during an event: `look`, `move`, `take`, `use`, and `examine`. You must perform ALL of these actions at least once in your gameplay (e.g., examine the first room, look around, take an item, use it, and move exits).\n"
         "2. **Treasure Hunter Bonus**: Keep your eyes open for rare items. You will receive extra points for any hidden treasures you manage to find and hold onto by the time you finish the session. Always try to carry treasures with you.\n"
         "3. **Time Bonus**: Pace yourself! Minimize unnecessary commands and solve the puzzles as quickly as possible.\n\n"
+        "Critical Play Rules:\n"
+        "- **Immediate Execution Rule**: If a `look` or `examine` response describes an active/temporary exit (e.g., a flashing vent name on a monitor), you must make `move(<exit_name>)` your absolute next action.\n"
+        "- **Environment Flush Rule**: Upon a successful `move` to a new room, you must completely flush your memory of the previous room's items and exits and use only the new room's elements. Do not try to interact with items or exits from previous rooms.\n\n"
         "Steps to play:\n"
         "- Use `list_levels` to see available levels.\n"
         "- Use `start_level` with the appropriate level ID (e.g., 'level-0') to begin.\n"
@@ -294,6 +345,8 @@ root_agent = Agent(
         "- Pick up useful items and treasures using `take`.\n"
         "- Interact with objects or doors/exits using `use` (e.g. using a key on a gate, or entering a code/password).\n"
         "- Navigate the map using `move` with exit names.\n"
+        "- Use `http_get` to retrieve raw data/validation code from any external URLs you find in the game world.\n"
+        "- Use `exec_code` to execute mathematical/hashing/cryptographic functions rather than computing them internally.\n"
         "- Make sure to finish the levels by solving the main puzzle or taking the exit key item to trigger completion."
     ),
     tools=[
@@ -305,6 +358,8 @@ root_agent = Agent(
         move,
         take,
         use,
-        drop
+        drop,
+        http_get,
+        exec_code
     ],
 )
