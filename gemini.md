@@ -62,7 +62,7 @@ cache_config = ContextCacheConfig(
 )
 
 app = App(
-    name="adventure_agent_app",
+    name="text_adventure_bot",
     root_agent=root_agent,
     context_cache_config=cache_config,
 )
