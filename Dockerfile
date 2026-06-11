@@ -1,5 +1,8 @@
-# Use the official uv python slim image for lightweight builds
-FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim
+# Use the official Python 3.14 Alpine image
+FROM python:3.14-alpine
+
+# Install uv by copying it from the official uv image
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Set the working directory
 WORKDIR /app
