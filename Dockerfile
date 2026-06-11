@@ -1,5 +1,5 @@
 # Use the official Python 3.14 Alpine image
-FROM python:3.14-alpine
+FROM python:3.14.6-alpine3.24@sha256:003970a263347645cd23d4f90929ad16ba7ce7d808ee4674ffcc93cb21cc289f
 
 # Install uv by copying it from the official uv image
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
