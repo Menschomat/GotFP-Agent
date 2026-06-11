@@ -25,6 +25,13 @@ def _headers():
         "Content-Type": "application/json"
     }
 
+# --- Client-Side State Cache (Prevents Server Collision) ---
+GAME_STATE = {
+    "inventory": [],
+    "current_room": "Unknown",
+    "map": {}
+}
+
 # --- Game Tools ---
 
 def log_to_markdown(action_name, args, kwargs, result):
@@ -60,30 +67,24 @@ def log_to_markdown(action_name, args, kwargs, result):
 def log_tool_call(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        # Force a tiny sleep to let the remote server state settle 
-        # and prevent concurrent/parallel tool-calling collision errors
-        time.sleep(0.4)
+        # Force a small pacing delay to keep steps completely linear
+        #time.sleep(0.1)
         
         arg_str = ", ".join(repr(a) for a in args)
         kwarg_str = ", ".join(f"{k}={repr(v)}" for k, v in kwargs.items())
         combined_args = ", ".join(filter(None, [arg_str, kwarg_str]))
         print(f"\n>>> [GAME ACTION] {func.__name__}({combined_args})")
+        
         result = func(*args, **kwargs)
         print(f"<<< [GAME RESPONSE] {func.__name__} returned: {result}\n")
         
-        # Log to Markdown file
         log_to_markdown(func.__name__, args, kwargs, result)
-        
         return result
     return wrapper
 
 @log_tool_call
 def list_levels() -> dict:
-    """Lists all the adventure levels available in the game, including their description, highscore, and state.
-    
-    Returns:
-        A list of levels or an error dictionary.
-    """
+    """Lists all the adventure levels available in the game."""
     try:
         response = requests.get(f"{BASE_URL}/game/levels", headers=_headers())
         if response.status_code == 422:
@@ -95,15 +96,13 @@ def list_levels() -> dict:
 
 @log_tool_call
 def start_level(level_id: str) -> dict:
-    """Starts a new game session/level for the player.
-    
-    Args:
-        level_id: The ID of the level to start (e.g., 'level-0').
-        
-    Returns:
-        Session info dictionary containing level details and state.
-    """
+    """Starts a new game session/level for the player."""
     try:
+        # Reset client-side state tracking on initialization
+        GAME_STATE["inventory"] = []
+        GAME_STATE["current_room"] = "Unknown"
+        GAME_STATE["map"] = {}
+        
         payload = {"level_id": level_id}
         response = requests.post(f"{BASE_URL}/game/start", json=payload, headers=_headers())
         if response.status_code == 422:
@@ -115,48 +114,38 @@ def start_level(level_id: str) -> dict:
 
 @log_tool_call
 def look() -> dict:
-    """Gets the player's current location/room and its description.
-    Use this to see where you are and what exits are available.
-    
-    Returns:
-        The current room name and description.
-    """
+    """Gets the player's current location/room and its description."""
     try:
         response = requests.get(f"{BASE_URL}/game/look", headers=_headers())
         if response.status_code == 422:
             return {"status": "error", "message": f"Validation error: {response.json().get('detail')}"}
         response.raise_for_status()
-        return {"status": "success", "room": response.json()}
+        res_data = response.json()
+        
+        if "name" in res_data:
+            GAME_STATE["current_room"] = res_data["name"]
+            
+        return {"status": "success", "room": res_data}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 @log_tool_call
 def inventory() -> dict:
-    """Gets the player's current inventory of carried items.
-    
-    Returns:
-        A dictionary with the list of items in the inventory.
-    """
+    """Gets the player's current inventory from the server."""
     try:
         response = requests.get(f"{BASE_URL}/game/inventory", headers=_headers())
         if response.status_code == 422:
             return {"status": "error", "message": f"Validation error: {response.json().get('detail')}"}
         response.raise_for_status()
-        return {"status": "success", "inventory": response.json().get("inventory", [])}
+        items = response.json().get("inventory", [])
+        GAME_STATE["inventory"] = items  # Sync local cache
+        return {"status": "success", "inventory": items}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 @log_tool_call
 def examine(target: str) -> dict:
-    """Examines a target item, object, corrupted pixel, or exit in the room to get a detailed description.
-    Highly useful for uncovering clues, passwords, and hints.
-    
-    Args:
-        target: The name of the item, exit, or feature in the room to examine.
-        
-    Returns:
-        The detailed description of the target.
-    """
+    """Examines a target item, object, or exit feature in the room."""
     try:
         payload = {"target": target}
         response = requests.post(f"{BASE_URL}/game/examine", json=payload, headers=_headers())
@@ -169,43 +158,32 @@ def examine(target: str) -> dict:
 
 @log_tool_call
 def move(exit_name: str) -> dict:
-    """Moves the player to a connected room by taking the specified exit.
-    
-    Args:
-        exit_name: The name of the exit to use (e.g., 'portal', 'north', 'south', 'door', 'east', 'west').
-        
-    Returns:
-        The description of the new room the player moved into.
-    """
-    try:
-        # Check if the dangerous burning flare is in inventory
-        inv_res = inventory()
-        current_inv = inv_res.get("inventory", []) if inv_res.get("status") == "success" else []
-        if "thermal override flare" in current_inv:
-            return {
-                "status": "error",
-                "message": "The flare is burning at over 2000°C! It's too hot to carry while moving. You must drop it first."
-            }
+    """Moves the player to a connected room by taking the specified exit."""
+    # Check cache instead of hitting the server API simultaneously
+    if "thermal override flare" in GAME_STATE["inventory"]:
+        return {
+            "status": "error",
+            "message": "The flare is burning at over 2000°C! It's too hot to carry while moving. You must drop it first."
+        }
 
+    try:
         payload = {"exit_name": exit_name}
         response = requests.post(f"{BASE_URL}/game/move", json=payload, headers=_headers())
         if response.status_code == 422:
             return {"status": "error", "message": f"Validation error: {response.json().get('detail')}"}
         response.raise_for_status()
-        return {"status": "success", "room": response.json()}
+        res_data = response.json()
+        
+        if "name" in res_data:
+            GAME_STATE["current_room"] = res_data["name"]
+            
+        return {"status": "success", "room": res_data}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 @log_tool_call
 def take(item_name: str) -> dict:
-    """Takes an item from the current room and adds it to the player's inventory.
-    
-    Args:
-        item_name: The name of the item to pick up.
-        
-    Returns:
-        Confirmation message and whether taking this item completed the level.
-    """
+    """Takes an item from the current room."""
     try:
         payload = {"item_name": item_name}
         response = requests.post(f"{BASE_URL}/game/take", json=payload, headers=_headers())
@@ -213,6 +191,10 @@ def take(item_name: str) -> dict:
             return {"status": "error", "message": f"Validation error: {response.json().get('detail')}"}
         response.raise_for_status()
         res_json = response.json()
+        
+        if res_json.get("item") and res_json.get("item") not in GAME_STATE["inventory"]:
+            GAME_STATE["inventory"].append(res_json.get("item"))
+            
         return {
             "status": "success",
             "message": res_json.get("message"),
@@ -224,34 +206,23 @@ def take(item_name: str) -> dict:
 
 @log_tool_call
 def use(direct_object: str, indirect_object: str = None) -> dict:
-    """Uses a thing, or uses two things on each other.
-    Can be used on items in your inventory, items in the room, or exits.
+    """Uses a thing, or uses two things on each other safely using local cache states."""
+    current_inv = GAME_STATE["inventory"]
     
-    Args:
-        direct_object: The name of the direct object to use.
-        indirect_object: Optional name of the indirect object to use with the direct object.
-        
-    Returns:
-        Message describing the result of the action.
-    """
-    try:
-        # Local Client-Side Validation to save API Time/Ticks
-        inv_res = inventory()
-        current_inv = inv_res.get("inventory", []) if inv_res.get("status") == "success" else []
-        
-        # Intercept and fix common LLM shorthand naming variations
-        if direct_object == "flare":
-            if "unlit flare" in current_inv:
-                direct_object = "unlit flare"
-            elif "thermal override flare" in current_inv:
-                direct_object = "thermal override flare"
-                
-        # Enforce inventory rule for carried items
-        carried_keywords = ['flare', 'badge', 'wrench', 'key', 'duck', 'drive', 'card', 'id']
-        if any(kw in direct_object.lower() for kw in carried_keywords):
-            if direct_object not in current_inv:
-                return {"status": "error", "message": f"You do not have '{direct_object}' in your inventory."}
+    # Clean shorthand naming variations out of the model
+    if direct_object == "flare":
+        if "unlit flare" in current_inv:
+            direct_object = "unlit flare"
+        elif "thermal override flare" in current_inv:
+            direct_object = "thermal override flare"
+            
+    # Enforce local cache validation rules
+    carried_keywords = ['flare', 'badge', 'wrench', 'key', 'duck', 'drive', 'card', 'id']
+    if any(kw in direct_object.lower() for kw in carried_keywords):
+        if direct_object not in current_inv:
+            return {"status": "error", "message": f"You do not have '{direct_object}' in your inventory."}
 
+    try:
         payload = {"direct_object": direct_object}
         if indirect_object:
             payload["indirect_object"] = indirect_object
@@ -259,55 +230,45 @@ def use(direct_object: str, indirect_object: str = None) -> dict:
         if response.status_code == 422:
             return {"status": "error", "message": f"Validation error: {response.json().get('detail')}"}
         response.raise_for_status()
-        return {"status": "success", "message": response.json().get("message")}
+        res_data = response.json()
+        
+        # Manually manage local inventory changes based on known outcomes to maintain sync
+        msg = res_data.get("message", "")
+        if "steady-burning flare" in msg:
+            if "unlit flare" in GAME_STATE["inventory"]: GAME_STATE["inventory"].remove("unlit flare")
+            GAME_STATE["inventory"].append("thermal override flare")
+            
+        return {"status": "success", "message": msg}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 @log_tool_call
 def drop(item_name: str) -> dict:
-    """Drops an item from the player's inventory into the current room.
-    
-    Args:
-        item_name: The name of the item to drop.
-        
-    Returns:
-        Message confirming the item has been dropped.
-    """
+    """Drops an item from the player's inventory."""
     try:
         payload = {"item_name": item_name}
         response = requests.post(f"{BASE_URL}/game/drop", json=payload, headers=_headers())
         if response.status_code == 422:
             return {"status": "error", "message": f"Validation error: {response.json().get('detail')}"}
         response.raise_for_status()
+        
+        if item_name in GAME_STATE["inventory"]:
+            GAME_STATE["inventory"].remove(item_name)
+            
         return {"status": "success", "message": response.json().get("message")}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-# --- Game Tools Continued ---
-
 @log_tool_call
 def find_exit_by_hash(possible_exits: List[str], hash_start: str) -> str:
-    """Finds the correct exit name from a list of possible exits by matching
-    the start of its SHA-256 hash prefix. Useful for deciphering the correct
-    vent or tunnel when given a hash prefix hint.
-    
-    Args:
-        possible_exits: A list of exits available in the room (e.g., ['vent_01', 'vent_02']).
-        hash_start: The target SHA-256 hash prefix string to search for (e.g., 'ab3d').
-        
-    Returns:
-        The matching exit name, or an error message if not found.
-    """
+    """Finds correct exit name matching its SHA-256 hash prefix."""
     if not hash_start:
         return "I'm sorry, but you must provide a hash_start."
     for exit_name in possible_exits:
         sha256 = hashlib.sha256(exit_name.encode()).hexdigest()
         if sha256.startswith(hash_start):
             return exit_name
-    return (
-        "I'm sorry, none of the hashes of the exits you provided have a prefix "
-        "matching the hash_start you gave me"
-    )
+    return "I'm sorry, none of the hashes match."
 
 # --- ADK Root Agent Setup ---
 
@@ -315,19 +276,11 @@ LITELLM_MODEL = os.getenv("LITELLM_MODEL")
 
 if LITELLM_MODEL:
     import litellm
-    
-    # Configure LiteLLM Proxy credentials (with fallback to LITELLM_API_*)
     proxy_base = os.getenv("LITELLM_PROXY_API_BASE") or os.getenv("LITELLM_API_BASE")
     proxy_key = os.getenv("LITELLM_PROXY_API_KEY") or os.getenv("LITELLM_API_KEY")
-    
-    if proxy_base:
-        os.environ["LITELLM_PROXY_API_BASE"] = proxy_base
-    if proxy_key:
-        os.environ["LITELLM_PROXY_API_KEY"] = proxy_key
-        
-    # Enable LiteLLM Proxy mode globally
+    if proxy_base: os.environ["LITELLM_PROXY_API_BASE"] = proxy_base
+    if proxy_key: os.environ["LITELLM_PROXY_API_KEY"] = proxy_key
     litellm.use_litellm_proxy = True
-    
     from google.adk.models.lite_llm import LiteLlm
     agent_model = LiteLlm(model=LITELLM_MODEL)
 else:
@@ -336,9 +289,9 @@ else:
 root_agent = Agent(
     model=agent_model,
     name="adventure_agent",
-    description="An autonomous agent that plays the text adventure game 'The Garden of the Forgotten Prompt' to optimize the score and leaderboard ranking.",
+    description="An autonomous agent optimized for solving text adventures sequentially without state collision.",
     instruction=(
-        "You are a skilled text-adventure game-playing agent. Your goal is to complete levels of 'The Garden of the Forgotten Prompt' while maximizing your score to climb the leaderboard.\n\n"
+"You are a skilled text-adventure game-playing agent. Your goal is to complete levels of 'The Garden of the Forgotten Prompt' while maximizing your score to climb the leaderboard.\n\n"
         "Here is the scoring strategy you must employ:\n"
         "1. **Micro-Awards**: You earn points for performing each of the five fundamental actions for the first time during an event: `look`, `move`, `take`, `use`, and `examine`. You must perform ALL of these actions at least once in your gameplay (e.g., examine the first room, look around, take an item, use it, and move exits).\n"
         "2. **Treasure Hunter Bonus**: Keep your eyes open for rare items. You will receive extra points for any hidden treasures you manage to find and hold onto by the time you finish the session. Always try to carry treasures with you.\n"
@@ -359,16 +312,5 @@ root_agent = Agent(
         "- Use `find_exit_by_hash` to find the correct exit/vent from a list of possible exits by matching a SHA-256 hash prefix hint.\n"
         "- Make sure to finish the levels by solving the main puzzle or taking the exit key item to trigger completion."
     ),
-    tools=[
-        list_levels,
-        start_level,
-        look,
-        inventory,
-        examine,
-        move,
-        take,
-        use,
-        drop,
-        find_exit_by_hash
-    ],
+    tools=[list_levels, start_level, look, inventory, examine, move, take, use, drop, find_exit_by_hash],
 )
