@@ -35,9 +35,9 @@ gcloud auth application-default login
 ### Interactive CLI Chat
 You can chat with your agent interactively in the terminal by running:
 ```bash
-uv run adk run src/my_agent
+uv run adk run src/text_adventure_bot
 ```
-*(Alternatively, activate the virtual environment with `source .venv/bin/activate` and run `adk run src/my_agent`)*
+*(Alternatively, activate the virtual environment with `source .venv/bin/activate` and run `adk run src/text_adventure_bot`)*
 
 ### Visual Debugger Web UI
 ADK comes with a built-in visual web debugger. To launch it, run:
@@ -50,7 +50,7 @@ VS Code will automatically forward port `8000` and prompt you to open the browse
 
 ## Project Structure
 - `.devcontainer/`: Container build configuration and VS Code setup.
-- `src/my_agent/`: Your agent package code.
+- `src/text_adventure_bot/`: Your agent package code.
   - `agent.py`: Agent definition, instructions, and tools.
   - `__init__.py`: Package initialization.
 - `pyproject.toml`: Python package metadata and dependencies configuration.
