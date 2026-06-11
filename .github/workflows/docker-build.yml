@@ -17,17 +17,17 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@692973e3d9371296bd400494444585320509015c # v4.1.7
 
     - name: Set up QEMU
-      uses: docker/setup-qemu-action@v3
+      uses: docker/setup-qemu-action@29109295f81e79f972b9a117b075e7a96030997c # v3.1.0
 
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      uses: docker/setup-buildx-action@f7347a514d02690d56561f32a76f2d24268e3a2c # v3.3.0
 
     - name: Log in to GitHub Container Registry
       if: github.event_name != 'pull_request'
-      uses: docker/login-action@v3
+      uses: docker/login-action@9780b8c4a4df0647898863f6a27e3665a3d76b1f # v3.2.0
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
@@ -35,7 +35,7 @@ jobs:
 
     - name: Extract metadata (tags, labels) for Docker
       id: meta
-      uses: docker/metadata-action@v5
+      uses: docker/metadata-action@90299f187a550d571891508933b49e397554f67c # v5.5.1
       with:
         images: ghcr.io/${{ github.repository }}
         tags: |
@@ -44,7 +44,7 @@ jobs:
           type=sha,prefix=
 
     - name: Build and push Docker image
-      uses: docker/build-push-action@v6
+      uses: docker/build-push-action@487042a98449c336b283995f5c3534b0780495f5 # v6.3.0
       with:
         context: .
         platforms: linux/amd64,linux/arm64
