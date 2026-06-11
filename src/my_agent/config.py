@@ -12,6 +12,7 @@ load_dotenv(dotenv_path=_env_path)
 # --- API Configuration ---
 API_KEY: str | None = os.getenv("GAME_API_KEY")
 BASE_URL: str = "https://adventure.wietsevenema.eu"
+ON_GCP: bool = os.getenv("ON_GCP", "False").lower() in ("true", "1", "yes", "y", "t")
 
 # --- Project Paths ---
 PROJECT_ROOT: Path = Path(__file__).resolve().parents[2]

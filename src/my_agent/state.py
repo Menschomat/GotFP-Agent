@@ -12,12 +12,14 @@ class GameState:
     current_room: str = "Unknown"
     map: dict = field(default_factory=dict)
     log_file: Path | None = None
+    level_id: str | None = None
 
     def reset(self) -> None:
         """Reset state for a new game session."""
         self.inventory = []
         self.current_room = "Unknown"
         self.map = {}
+        self.level_id = None
 
 
 # Module-level singleton — shared across all tool functions.

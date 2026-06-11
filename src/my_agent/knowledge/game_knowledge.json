@@ -1,0 +1,22 @@
+{
+  "level-0": [
+    "Garbage Collection: Allocation pool contains a type sensor. Use memory allocator on pool to clear south path.",
+    "Level 0: The Digital Twin - Holodeck Entry: examine pixel, take cube, move north.",
+    "Level 0 Optimal Path (15 actions): look, examine pixel, take cube, move north, use toggle, move east, take token+coin+allocator, move south, use token on gateway, move west, drop allocator, move south, take badge.",
+    "Level 0 Treasures: physical cube (Holodeck Entry) and gold coin (Payload Allocation). Fully deterministic, no random elements."
+  ],
+  "level-2": [
+    "Level 2: Cooling Intake - fan jammed by heavy wrench. Technician badge in intake grate under basin.",
+    "Level 2: Cooling Intake - Use technician's badge on sealed supply crate to get quantum encryption key.",
+    "Level 2: Coolant Relay - CRT monitor shows waste_disposal_chute is OPEN.",
+    "Level 2: Zero-Trust Vault - Safe tunnel hash prefix 425d = cabling_tunnel_beta_f7.",
+    "Level 2: Coolant Relay - Rubber duck treasure hidden behind decaying server racks.",
+    "Level 2 Optimal Path: take wrench, use on fan, examine basin, examine grate, take badge, use badge on crate, take key, move blast door, examine racks, take duck, examine CRT, move OPEN vent, examine mainframe, find_exit_by_hash, move tunnel, take drive.",
+    "Level 2 Treasures: quantum encryption key (cooling intake crate) and rubber duck (behind coolant relay server racks).",
+    "Level 2 Random: CRT vent name, hash prefix, and tunnel list all change per session. Must examine fresh each time."
+  ],
+  "level-1": [
+    "Level 1 Optimal Path: take all lobby items, move north, light flare, drop flare, break amber with lighter (get sunflower), move east, take key, use key on panel, take manifest, look, take wafer, move west x2, use key on doors, move north, take module.",
+    "Level 1 Treasures: petrified sunflower (from amber chunk) and pristine solar wafer (hidden compartment behind loose panel). Fully deterministic."
+  ]
+}

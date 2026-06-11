@@ -1,4 +1,4 @@
 # Initialize the agent package
-from .agent import root_agent
+from .agent import root_agent, app
 
-__all__ = ["root_agent"]
+__all__ = ["root_agent", "app"]
