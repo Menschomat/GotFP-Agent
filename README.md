@@ -55,7 +55,7 @@ uv run adk run src/text_adventure_bot
 ### Visual Debugger Web UI
 Inspect agent runs, trace tool calls, and test workflows interactively:
 ```bash
-uv run adk web
+uv run adk web src
 ```
 Open your browser at `http://localhost:8000` to access the web debugger.
 
