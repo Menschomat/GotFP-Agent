@@ -13,7 +13,9 @@
     "Level 2: Coolant Relay - Rubber duck treasure hidden behind decaying server racks.",
     "Level 2 Optimal Path: take wrench, use on fan, examine basin, examine grate, take badge, use badge on crate, take key, move blast door, examine racks, take duck, examine CRT, move OPEN vent, examine mainframe, find_exit_by_hash, move tunnel, take drive.",
     "Level 2 Treasures: quantum encryption key (cooling intake crate) and rubber duck (behind coolant relay server racks).",
-    "Level 2 Random: CRT vent name, hash prefix, and tunnel list all change per session. Must examine fresh each time."
+    "Level 2 Random: CRT vent name, hash prefix, and tunnel list all change per session. Must examine fresh each time.",
+    "Level 2: Coolant Relay - CRT showed OPEN: backup_generator_hall.",
+    "Level 2: Zero-Trust Vault - Hash prefix dd67 = magnetic_shielding_crawlway_88."
   ],
   "level-1": [
     "Level 1 Optimal Path: take all lobby items, move north, light flare, drop flare, break amber with lighter (get sunflower), move east, take key, use key on panel, take manifest, look, take wafer, move west x2, use key on doors, move north, take module.",
